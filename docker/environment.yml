@@ -8,8 +8,8 @@ channels:
     - jjhelmus
     - soumith
 dependencies:
-    - python==3.5
-    - numpy
+    - python=3.5.5=h0a44026_3
+    - numpy=1.14.5=py35_blas_openblashd3ea46f_20
     - scipy
     - path.py
     - python-dateutil
@@ -22,7 +22,7 @@ dependencies:
     - pygame
     - h5py
     - matplotlib
-    - opencv3
+    - opencv3=3.1.0=py35_0
     - scikit-learn
     - pytorch
     - torchvision
