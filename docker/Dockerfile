@@ -29,14 +29,16 @@ RUN pip install awscli
 # ALE requires zlib
 RUN apt-get -y install zlib1g-dev
 # MUJOCO requires graphics stuff (Why?)
-RUN apt-get -y build-dep glfw
+# RUN apt-get -y build-dep glfw
+RUN apt-get -y install libglfw3-dev
 RUN apt-get -y install libxrandr2 libxinerama-dev libxi6 libxcursor-dev
 # copied from requirements.txt
 #RUN pip install imageio tabulate nose
 RUN apt-get install -y vim ack-grep
 RUN pip install --upgrade pip
 # usual pip install pygame will fail
-RUN apt-get build-dep -y python-pygame
+RUN apt-get install -y python-pygame
+#RUN apt-get build-dep -y python-pygame
 RUN pip install Pillow
 
 # ========== OpenAI Gym ==========
