@@ -1,5 +1,6 @@
 name: rllab_goal_rl
 channels:
+    - conda-forge
     - https://conda.anaconda.org/kne
     - https://conda.binstar.org/tlatorre
     - https://conda.anaconda.org/cjs14
@@ -7,12 +8,12 @@ channels:
     - jjhelmus
     - soumith
 dependencies:
-    - python==3.5.2
-    - numpy==1.11.2
+    - python==3.5
+    - numpy
     - scipy
     - path.py
     - python-dateutil
-    - joblib==0.9.4
+    - joblib
     - mako
     - ipywidgets
     - numba
@@ -21,7 +22,7 @@ dependencies:
     - pygame
     - h5py
     - matplotlib
-    - opencv3=3.1.0
+    - opencv3
     - scikit-learn
     - pytorch
     - torchvision
@@ -50,7 +51,7 @@ dependencies:
         - git+https://github.com/neocxi/prettytensor.git
         - jupyter
         - progressbar2
-        - chainer==1.18.0
+        - chainer
         - tensorflow-gpu; 'linux' in sys_platform
         - tensorflow; sys_platform == 'darwin'
         - dominate
