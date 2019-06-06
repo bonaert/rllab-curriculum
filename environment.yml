@@ -8,11 +8,11 @@ channels:
     - soumith
 dependencies:
     - python==3.5.2
-    - numpy==1.11.2
+    - numpy
     - scipy
     - path.py
     - python-dateutil
-    - joblib==0.9.4
+    - joblib
     - mako
     - ipywidgets
     - numba
@@ -21,10 +21,11 @@ dependencies:
     - pygame
     - h5py
     - matplotlib
-    - opencv3=3.1.0
+    - opencv3
     - scikit-learn
     - pytorch
     - torchvision
+    - Cython
     - pip:
         - Pillow
         - atari-py
@@ -35,11 +36,10 @@ dependencies:
         - nose2
         - pyzmq
         - msgpack-python
-        - mujoco_py
+        - Cython
         - cached_property
         - line_profiler
         - cloudpickle
-        - Cython
         - redis
         - git+https://github.com/Theano/Theano.git@adfe319ce6b781083d8dc3200fb4481b00853791#egg=Theano
         - git+https://github.com/neocxi/Lasagne.git@484866cf8b38d878e92d521be445968531646bb8#egg=Lasagne
