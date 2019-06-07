@@ -173,7 +173,7 @@ def sampleNearby(problem, starts=None, horizon=50, subsample = True, size=10000)
     states = [problem.env.start_observation]
     
     while len(states) < size:
-        start = makeChoice(starts)
+        start = starts[i % len(starts)]
         newStates, reachedGoal = brownian(start, problem, horizon, render=True)
         states.extend(newStates)
         print("Reached goal: %s" % reachedGoal)
@@ -210,7 +210,7 @@ def training(problem):
         for iteration in range(1, problem.outer_iters):
             
             with problem.env.set_kill_outside():
-                print("Sampling new starts")
+                print("Sampling new starts - Iteration %d" % iteration)
                 starts = sampleNearby(problem, seedStarts, problem.horizon, subsample=False)
 
             brownian_starts.empty()
@@ -232,11 +232,11 @@ def training(problem):
             )
 
             # rews ← trainPol(ρ i , π i−1 )
-            print("Training the algorithm")
+            print("Iteration %d - Training the algorithm" % iteration)
             algo.current_itr = 0
             trpo_paths = algo.train(already_init=iteration > 1)
 
-            print("Evaluating the sucess of the algorithm in this iteration...")
+            print("Evaluating the sucess of the algorithm in this iteration %d..." % iteration)
             [starts, labels] = label_states_from_paths(trpo_paths, n_traj=2, key='goal_reached', as_goal=False, env=problem.env)
             start_classes, text_labels = convert_label(labels)
             labels = np.logical_and(labels[:, 0], labels[:, 1]).astype(int).reshape((-1, 1))
@@ -247,10 +247,11 @@ def training(problem):
 
 
             print("Saving weights. Iteration %d" % iteration)
-            pickle.dump(policy, mlpFile)
+            pickle.dump(policy., mlpFile)
 
             print("Saving results to file")
             resultsFile.write("Iteration %d - Successes: %d / %d\n" % (iteration, successes, total))
+            resultsFile.flush()
             
 
 
