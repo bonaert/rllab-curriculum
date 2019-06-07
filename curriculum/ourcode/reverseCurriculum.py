@@ -204,7 +204,7 @@ def training(problem):
     starts = [problem.goal]
     seedStarts = sampleNearby(problem, starts=starts, horizon=10, size=1000)
     
-    with open('mlp.pickled', 'w') as mlpFile, open('results.txt', 'w') as resultsFile:
+    with open('mlp.pickled', 'wb') as mlpFile, open('results.txt', 'w') as resultsFile:
         all_starts = StateCollection(distance_threshold=0.03)
         brownian_starts = StateCollection(distance_threshold=0)
         for iteration in range(1, problem.outer_iters):
