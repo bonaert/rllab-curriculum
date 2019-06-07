@@ -1,6 +1,6 @@
 import numpy as np
 from curriculum.ourcode.arm3dkey import Arm3DKey
-#from curriculum.ourcode.arm3ddisk import Arm3DDisc
+from curriculum.ourcode.arm3ddisk import Arm3DDisc
 
 # export PYTHONPATH=/home/greg/software/spark-2.4.0-bin-hadoop2.7/python/lib/pyspark.zip:/home/greg/software/spark-2.4.0-bin-hadoop2.7/python/lib/py4j-0.10.7-src.zip:/home/greg/MEGAsync/aVUB/MA1/MultiAgent/bonaert/rllab-curriculum
 # export PYTHONPATH=/home/greg/software/spark-2.4.0-bin-hadoop2.7/python/lib/pyspark.zip:/home/greg/software/spark-2.4.0-bin-hadoop2.7/python/lib/py4j-0.10.7-src.zip:/home/greg/MEGAsync/aVUB/MA1/MultiAgent/bonaert/rllab-curriculum
@@ -31,8 +31,8 @@ def renderEnv(problem, reset=False):
 
 from reverseCurriculum import brownian, sampleNearby, training
 
-#problem = Arm3DKey()
-problem = Arm3DDisc()
+problem = Arm3DKey()
+#problem = Arm3DDisc()
 
 
 #states = brownian(problem.goal, problem, render=True)

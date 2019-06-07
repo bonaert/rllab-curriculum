@@ -4,6 +4,8 @@ from rllab.baselines.linear_feature_baseline import LinearFeatureBaseline
 from rllab.baselines.gaussian_mlp_baseline import GaussianMLPBaseline
 from rllab.policies.gaussian_mlp_policy import GaussianMLPPolicy
 from curriculum.envs.base import UniformListStateGenerator, UniformStateGenerator, FixedStateGenerator
+from curriculum.state.evaluator import convert_label, label_states, evaluate_states, label_states_from_paths
+from curriculum.state.utils import StateCollection
 
 # These values are described in the hyper-parameters section of the papers
 
@@ -60,36 +62,7 @@ def makeChoices(x, n):
     return [makeChoice(x) for i in range(num)]
 
 
-def brownian(start, problem, render=False):
-    done = False
-    steps = 0
-    states = []
-    _ = problem.env.reset(start)
-    while not done and steps < ROLLOUT_HORIZON:
-        if render:
-            problem.env.render()
 
-        steps += 1
-        action = np.random.normal(
-            MEAN, SIGMA, problem.actionSize)  # , numAction)
-        state, _, done, _ = problem.env.step(action)
-        states.append(state)
-        if done:  # we don't care about goal done, otherwise will never advance!
-            done = False
-
-    return states
-
-
-def sampleNearby(problem, starts):
-    # This part ensures we have MIN_START_STATES in the start array
-    while len(starts) < MIN_START_STATES:
-        start = makeChoice(starts)
-        print(start)
-        newStates = brownian(start, problem, render=True)
-        starts.extend(newStates)
-        print("Added %s states to starts array. New size: %d" % (len(newStates), len(starts)))
-
-    return makeChoices(starts, problem.num_new_starts)
 
 
 ##########################################
@@ -118,6 +91,7 @@ def evaluateState(problem, policy, state):
     cumulativeRewards = []
     for _ in range(problem.n_traj):
         cumulativeReward = np.sum(rolloutRewards(problem, policy, state))
+        print(cumulativeReward)
         cumulativeRewards.append(cumulativeReward)
     return np.mean(cumulativeRewards)
 
@@ -135,8 +109,6 @@ def selectStartsWithGoodDifficulty(starts, rewards):
 ##########################################
 
 def getPolicy(problem):
-    baseline = LinearFeatureBaseline(env_spec=problem.env.spec)
-
     policy = GaussianMLPPolicy(
         env_spec=problem.env.spec,
         hidden_sizes=(64, 64),
@@ -152,7 +124,7 @@ def getPolicy(problem):
     algo = TRPO(
         env=problem.env,
         policy=policy,
-        baseline=baseline,
+        baseline=problem.baseline,
         batch_size=problem.pg_batch_size,
         max_path_length=problem.horizon,
         n_itr=problem.inner_iters,
@@ -163,26 +135,66 @@ def getPolicy(problem):
     return policy, algo
 
 
-def trainPolicy(problem, starts, algo, policy):
-    trpo_paths = algo.train()
-    print(trpo_paths)
-    with problem.env.set_kill_outside():
-        rewards = evaluateStates(problem, policy, states=starts)
-    print(rewards)
-    return rewards
+
 
 
 ITERATIONS = 5
 
 
-def generateStarts(problem, starts, startsOld):
+def brownian(start, problem, horizon, render=False):
+    with problem.env.set_kill_outside(kill_outside=problem.env.kill_outside, radius=problem.env.kill_radius):
+        done = False
+        steps = 0
+        states = []
+        _ = problem.env.reset(start)
+        reachedGoal = False
+        while not done and steps < horizon:
+            if render:
+                problem.env.render()
+            steps += 1
+            action = np.random.uniform(*problem.env.action_space.bounds)
+            obs, _, done, _ = problem.env.step(action)
+            states.append(problem.env.start_observation)
+            if done:  # we don't care about goal done, otherwise will never advance!
+                done = False
+                reachedGoal = True
+
+    return states, reachedGoal
+
+
+def sampleNearby(problem, starts=None, horizon=50, subsample = True, size=10000):
+    # This part ensures we have MIN_START_STATES in the start array
+    if starts is None or len(starts) == 0:
+        starts = [problem.env.reset()]
+
+    i = 0
+    problem.env.reset(init_state=starts[i % len(starts)])
+    states = [problem.env.start_observation]
+    
+    while len(states) < size:
+        start = makeChoice(starts)
+        newStates, reachedGoal = brownian(start, problem, horizon, render=True)
+        states.extend(newStates)
+        print("Reached goal: %s" % reachedGoal)
+        print("Added %s states to starts array. New size: %d" % (len(newStates), len(states)))
+        
+
+        i += 1
+        problem.env.reset(init_state=starts[i % len(starts)])
+        states.append(problem.env.start_observation)
+
+    if subsample:
+        return makeChoices(states, problem.num_new_starts)
+    else:
+        return states
+
+def generateStarts(problem, starts, horizon):
     with problem.env.set_kill_outside():
         # starts ← SampleNearby(starts, Nnew)
-        starts = sampleNearby(problem, starts)
+        starts = sampleNearby(problem, starts, horizon, subsample=True)
 
         # starts.append[sample(startsOld , NOld)]
-        starts.extend(makeChoices(startsOld, problem.num_old_starts))
-
+        
     return starts
 
 def training(problem):
@@ -191,9 +203,26 @@ def training(problem):
 
     policy, algo = getPolicy(problem)
 
-    for _ in range(ITERATIONS):
+    seedStarts = sampleNearby(problem, starts=starts, horizon=10, size=1000)
+    print(len(seedStarts))
+
+    all_starts = StateCollection(distance_threshold=0.03)
+    brownian_starts = StateCollection(distance_threshold=0)
+
+    for iteration in range(1, problem.outer_iters):
         
-        starts = generateStarts(problem, starts, startsOld)
+        with problem.env.set_kill_outside():
+            starts = sampleNearby(problem, seedStarts, problem.horizon, subsample=False)
+
+        brownian_starts.empty()
+        brownian_starts.append(starts)
+        starts = brownian_starts.sample(size=problem.num_new_starts)
+
+        if iteration > 0 and all_starts.size > 0:
+            old_starts = all_starts.sample(problem.num_old_starts)
+            starts = np.vstack([starts, old_starts])
+            
+
 
         # ρ i ← Unif(starts)
         algo.env.update_start_generator(
@@ -203,12 +232,39 @@ def training(problem):
         )
 
         # rews ← trainPol(ρ i , π i−1 )
-        rewards = trainPolicy(problem, starts, algo, policy)
+        trpo_paths = algo.train(already_init=iteration > 1)
+
+        [starts, labels] = label_states_from_paths(
+            trpo_paths, n_traj=2, key='goal_reached',  # using the min n_traj
+            as_goal=False, env=problem.env)
+        start_classes, text_labels = convert_label(labels)
+        labels = np.logical_and(labels[:, 0], labels[:, 1]).astype(int).reshape((-1, 1))
+        
+        print(labels)
+
+
+
+        #with problem.env.set_kill_outside():
+        #    rewards = evaluateStates(problem, policy, states=starts)
+        #print(rewards)
 
         # starts ← select(starts, rews, R min , R max )
-        starts = selectStartsWithGoodDifficulty(starts, rewards)
+        #starts = selectStartsWithGoodDifficulty(starts, rewards)
+
+
+        filtered_raw_starts = [start for start, label in zip(starts, labels) if label[0] == 1]
+        all_starts.append(filtered_raw_starts)
+        
+        if len(filtered_raw_starts) > 0:
+            seedStarts = filtered_raw_starts
+        elif np.sum(start_classes == 0) > np.sum(start_classes == 1):  # if more low reward than high reward
+            seedStarts = all_starts.sample(300)  # sample them from the replay
+        else:  # add a tone of noise if all the states I had ended up being high_reward!
+            with algo.env.set_kill_outside(radius=problem.kill_radius):
+                seedStarts = sampleNearby(problem, starts=starts, horizon=int(problem.horizon * 10), subsample=True)
+       
 
         # startsOld.append[starts]
-        startsOld.extend(starts)
+        #startsOld.extend(starts)
 
     return policy

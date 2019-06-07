@@ -2,6 +2,7 @@ from curriculum.envs.arm3d.arm3d_disc_env import Arm3dDiscEnv
 from curriculum.envs.goal_start_env import GoalStartExplorationEnv
 from curriculum.envs.base import UniformListStateGenerator, UniformStateGenerator, FixedStateGenerator
 
+from rllab.baselines.gaussian_mlp_baseline import GaussianMLPBaseline
 
 class Arm3DDisc:
     def __init__(self):
@@ -11,6 +12,9 @@ class Arm3DDisc:
         self.ultimateGoal = (0.0, 0.3, -0.7,  # first point --> hill
                              0.0, 0.3, -0.4,  # second point --> top
                             -0.15, 0.3, -0.55) # third point --> side
+        
+
+        
 
         fixed_goal_generator = FixedStateGenerator(state=self.ultimateGoal)
         fixed_start_generator = FixedStateGenerator(state=self.goal)
@@ -21,24 +25,28 @@ class Arm3DDisc:
             obs2start_transform=lambda x: x[:7],
             goal_generator=fixed_goal_generator,
             obs2goal_transform=lambda x: x[-1 * 9:],  # the goal are the last 9 coords
-            terminal_eps=0.3,
+            terminal_eps=0.03,
             distance_metric='L2',
             extend_dist_rew=False,
             inner_weight=0,
             goal_weight=1,
             terminate_env=True,
         )
-
+        
+        self.baseline = GaussianMLPBaseline(env_spec=self.env.spec)
 
         self.actionSize = self.env.action_space.shape[0]
+
+        self.kill_radius=0.4
+        self.kill_outside=False
         
        
         self.num_new_starts = 600
         self.num_old_starts = 300
         self.horizon = 500
-        self.outer_iters = 50
+        self.outer_iters = 5000
         self.inner_iters = 5
-        self.pg_batch_size = 1000
+        self.pg_batch_size = 100000
         self.discount = 0.998
 
         self.n_traj =3  # only for labeling and plotting (for now, later it will have to be equal to persistence!)
