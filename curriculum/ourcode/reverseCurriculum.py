@@ -247,7 +247,7 @@ def training(problem):
 
 
             print("Saving weights. Iteration %d" % iteration)
-            pickle.dump(policy., mlpFile)
+            pickle.dump(policy, mlpFile)
 
             print("Saving results to file")
             resultsFile.write("Iteration %d - Successes: %d / %d\n" % (iteration, successes, total))
