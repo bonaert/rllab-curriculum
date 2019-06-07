@@ -1,3 +1,4 @@
+import pickle
 import numpy as np
 from rllab.algos.trpo import TRPO
 from rllab.baselines.linear_feature_baseline import LinearFeatureBaseline
@@ -198,73 +199,85 @@ def generateStarts(problem, starts, horizon):
     return starts
 
 def training(problem):
-    startsOld = [problem.goal]
-    starts = [problem.goal]
-
     policy, algo = getPolicy(problem)
 
+    starts = [problem.goal]
     seedStarts = sampleNearby(problem, starts=starts, horizon=10, size=1000)
-    print(len(seedStarts))
+    
+    with open('mlp.pickled', 'w') as mlpFile, open('results.txt', 'w') as resultsFile:
+        all_starts = StateCollection(distance_threshold=0.03)
+        brownian_starts = StateCollection(distance_threshold=0)
+        for iteration in range(1, problem.outer_iters):
+            
+            with problem.env.set_kill_outside():
+                print("Sampling new starts")
+                starts = sampleNearby(problem, seedStarts, problem.horizon, subsample=False)
 
-    all_starts = StateCollection(distance_threshold=0.03)
-    brownian_starts = StateCollection(distance_threshold=0)
+            brownian_starts.empty()
+            brownian_starts.append(starts)
+            starts = brownian_starts.sample(size=problem.num_new_starts)
 
-    for iteration in range(1, problem.outer_iters):
-        
-        with problem.env.set_kill_outside():
-            starts = sampleNearby(problem, seedStarts, problem.horizon, subsample=False)
+            if iteration > 0 and all_starts.size > 0:
+                print("Adding old starts")
+                old_starts = all_starts.sample(problem.num_old_starts)
+                starts = np.vstack([starts, old_starts])
+                
 
-        brownian_starts.empty()
-        brownian_starts.append(starts)
-        starts = brownian_starts.sample(size=problem.num_new_starts)
 
-        if iteration > 0 and all_starts.size > 0:
-            old_starts = all_starts.sample(problem.num_old_starts)
-            starts = np.vstack([starts, old_starts])
+            # ρ i ← Unif(starts)
+            algo.env.update_start_generator(
+                UniformListStateGenerator(
+                    starts, persistence=problem.persistence, with_replacement=problem.with_replacement,
+                )
+            )
+
+            # rews ← trainPol(ρ i , π i−1 )
+            print("Training the algorithm")
+            algo.current_itr = 0
+            trpo_paths = algo.train(already_init=iteration > 1)
+
+            print("Evaluating the sucess of the algorithm in this iteration...")
+            [starts, labels] = label_states_from_paths(trpo_paths, n_traj=2, key='goal_reached', as_goal=False, env=problem.env)
+            start_classes, text_labels = convert_label(labels)
+            labels = np.logical_and(labels[:, 0], labels[:, 1]).astype(int).reshape((-1, 1))
+            
+            successes = sum([1 for label in labels if label[0] == 1])
+            total = len(starts)
+            print("Successes: %d / %d" % (successes, total))
+
+
+            print("Saving weights. Iteration %d" % iteration)
+            pickle.dump(policy, mlpFile)
+
+            print("Saving results to file")
+            resultsFile.write("Iteration %d - Successes: %d / %d\n" % (iteration, successes, total))
             
 
 
-        # ρ i ← Unif(starts)
-        algo.env.update_start_generator(
-            UniformListStateGenerator(
-                starts, persistence=problem.persistence, with_replacement=problem.with_replacement,
-            )
-        )
+            #with problem.env.set_kill_outside():
+            #    rewards = evaluateStates(problem, policy, states=starts)
+            #print(rewards)
 
-        # rews ← trainPol(ρ i , π i−1 )
-        trpo_paths = algo.train(already_init=iteration > 1)
+            # starts ← select(starts, rews, R min , R max )
+            #starts = selectStartsWithGoodDifficulty(starts, rewards)
 
-        [starts, labels] = label_states_from_paths(
-            trpo_paths, n_traj=2, key='goal_reached',  # using the min n_traj
-            as_goal=False, env=problem.env)
-        start_classes, text_labels = convert_label(labels)
-        labels = np.logical_and(labels[:, 0], labels[:, 1]).astype(int).reshape((-1, 1))
+
+            filtered_raw_starts = [start for start, label in zip(starts, labels) if label[0] == 1]
+            all_starts.append(filtered_raw_starts)
+            
+            if len(filtered_raw_starts) > 0:
+                print("Result: some states with medium difficulty - use those ones as seed start")
+                seedStarts = filtered_raw_starts
+            elif np.sum(start_classes == 0) > np.sum(start_classes == 1):  # if more low reward than high reward
+                print("Result: always low reward: resample 300 states as seed starts")
+                seedStarts = all_starts.sample(300)  # sample them from the replay
+            else:  # add a tone of noise if all the states I had ended up being high_reward!
+                print("Result: always high reward: find new seed starts in 5000 step rollouts")
+                with algo.env.set_kill_outside(radius=problem.kill_radius):
+                    seedStarts = sampleNearby(problem, starts=starts, horizon=int(problem.horizon * 10), subsample=True)
         
-        print(labels)
 
-
-
-        #with problem.env.set_kill_outside():
-        #    rewards = evaluateStates(problem, policy, states=starts)
-        #print(rewards)
-
-        # starts ← select(starts, rews, R min , R max )
-        #starts = selectStartsWithGoodDifficulty(starts, rewards)
-
-
-        filtered_raw_starts = [start for start, label in zip(starts, labels) if label[0] == 1]
-        all_starts.append(filtered_raw_starts)
-        
-        if len(filtered_raw_starts) > 0:
-            seedStarts = filtered_raw_starts
-        elif np.sum(start_classes == 0) > np.sum(start_classes == 1):  # if more low reward than high reward
-            seedStarts = all_starts.sample(300)  # sample them from the replay
-        else:  # add a tone of noise if all the states I had ended up being high_reward!
-            with algo.env.set_kill_outside(radius=problem.kill_radius):
-                seedStarts = sampleNearby(problem, starts=starts, horizon=int(problem.horizon * 10), subsample=True)
-       
-
-        # startsOld.append[starts]
-        #startsOld.extend(starts)
+            # startsOld.append[starts]
+            #startsOld.extend(starts)
 
     return policy
