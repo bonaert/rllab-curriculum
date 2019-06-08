@@ -8,47 +8,13 @@ from curriculum.envs.base import UniformListStateGenerator, UniformStateGenerato
 from curriculum.state.evaluator import convert_label, label_states, evaluate_states, label_states_from_paths
 from curriculum.state.utils import StateCollection
 
-# These values are described in the hyper-parameters section of the papers
-
-NUM_NEW_POINTS = 200
-NUM_OLD_POINTS = 100
-
-REWARD_MIN = 0.1
-REWARD_MAX = 0.9
-
-MEAN = 0
-SIGMA = 1  # identity matrix
-
-MIN_START_STATES = 500
-
-ROLLOUT_HORIZON = 50  # max number of timesteps done during random motion
-
 
 # For our method as well as the baselines, we train a (64, 64) multi-layer perceptron (MLP) Gaussian
-# policy with TRPO [36], implemented with rllab [6]. We use a TRPO step-size of 0.01 and a (32, 32)
+# policy with TRPO, implemented with rllab. We use a TRPO step-size of 0.01 and a (32, 32)
 # MLP baseline.
 
-MLP_SIZE = (64, 64)
-MLP_BASELINE_SIZE = (32, 32)
-TRPO_STEP_SIZE = 0.01
 
 
-BATCH_SIZE = 50000  # timesteps
-
-
-MAXIMUM_HORIZON = 500  # don't know what this means
-MAXIMUM_HORIZON_ANT = 2000  # don't know what this means
-
-DISCOUNT_FACTOR = 0.998
-
-# Goal
-RADIUS_GOAL_BALL_ROBOT = 0.03  # 0.03m (don't know what the m means)
-RADIUS_GOAL_BALL_MAZE = 0.3  # 0.3m (don't know what the m means)
-RADIUS_GOAL_BALL_ANT = 0.5  # 0.5m (don't know what the m means)
-
-
-# K = totalSamplesStates
-# Tb = rolloutHorizon
 
 ##########################################
 #         SAMPLING INITIAL STATES
@@ -70,7 +36,7 @@ def makeChoices(x, n):
 #             EVALUATE
 ##########################################
 
-
+"""
 def rolloutRewards(problem, policy, state, render=True):
     rewards = []
     problem.env.reset(state)
@@ -103,7 +69,7 @@ def evaluateStates(problem, policy, states):
 
 def selectStartsWithGoodDifficulty(starts, rewards):
     return [start for start in starts if REWARD_MIN <= rewards[tuple(start)] <= REWARD_MAX]
-
+"""
 
 ##########################################
 #         CREATE AND TRAIN THE POLICY
@@ -138,18 +104,13 @@ def getPolicy(problem):
 
 
 
-
-ITERATIONS = 5
-
-
 def brownian(start, problem, horizon, render=False):
     with problem.env.set_kill_outside(kill_outside=problem.env.kill_outside, radius=problem.env.kill_radius):
-        done = False
         steps = 0
         states = []
         _ = problem.env.reset(start)
         reachedGoal = False
-        while not done and steps < horizon:
+        while steps < horizon:
             if render:
                 problem.env.render()
             steps += 1
@@ -157,14 +118,12 @@ def brownian(start, problem, horizon, render=False):
             obs, _, done, _ = problem.env.step(action)
             states.append(problem.env.start_observation)
             if done:  # we don't care about goal done, otherwise will never advance!
-                done = False
                 reachedGoal = True
 
     return states, reachedGoal
 
 
 def sampleNearby(problem, starts=None, horizon=50, subsample = True, size=10000):
-    # This part ensures we have MIN_START_STATES in the start array
     if starts is None or len(starts) == 0:
         starts = [problem.env.reset()]
 
@@ -174,7 +133,7 @@ def sampleNearby(problem, starts=None, horizon=50, subsample = True, size=10000)
     
     while len(states) < size:
         start = starts[i % len(starts)]
-        newStates, reachedGoal = brownian(start, problem, horizon, render=True)
+        newStates, reachedGoal = brownian(start, problem, horizon, render=False)
         states.extend(newStates)
         print("Reached goal: %s" % reachedGoal)
         print("Added %s states to starts array. New size: %d" % (len(newStates), len(states)))
@@ -189,14 +148,6 @@ def sampleNearby(problem, starts=None, horizon=50, subsample = True, size=10000)
     else:
         return states
 
-def generateStarts(problem, starts, horizon):
-    with problem.env.set_kill_outside():
-        # starts ← SampleNearby(starts, Nnew)
-        starts = sampleNearby(problem, starts, horizon, subsample=True)
-
-        # starts.append[sample(startsOld , NOld)]
-        
-    return starts
 
 def training(problem):
     policy, algo = getPolicy(problem)
@@ -211,7 +162,7 @@ def training(problem):
             
             with problem.env.set_kill_outside():
                 print("Sampling new starts - Iteration %d" % iteration)
-                starts = sampleNearby(problem, seedStarts, problem.horizon, subsample=False)
+                starts = sampleNearby(problem, seedStarts, problem.horizon, size=4000, subsample=False)
 
             brownian_starts.empty()
             brownian_starts.append(starts)
@@ -237,31 +188,30 @@ def training(problem):
             trpo_paths = algo.train(already_init=iteration > 1)
 
             print("Evaluating the sucess of the algorithm in this iteration %d..." % iteration)
+            # Returns 2 lists of [state] and [meanCumulativeReward > 0.1, meanCumulativeReward < 0.9] for all start states in the paths
             [starts, labels] = label_states_from_paths(trpo_paths, n_traj=2, key='goal_reached', as_goal=False, env=problem.env)
+            
             start_classes, text_labels = convert_label(labels)
+            
+            # Doing an AND on the labels. Result: array of [0.1 < meanCumulativeReward < 0.9]
+            # In other words, says if a state has the right difficulty or not
             labels = np.logical_and(labels[:, 0], labels[:, 1]).astype(int).reshape((-1, 1))
             
             successes = sum([1 for label in labels if label[0] == 1])
             total = len(starts)
-            print("Successes: %d / %d" % (successes, total))
+            numTooEasy =  np.sum(start_classes == 0)
+            numTooHard = np.sum(start_classes == 1)
+            print("Iteration %d - Successes: %d / %d (too easy: %d, too hard: %d)" % (iteration, successes, total, numTooEasy, numTooHard))
+            
 
 
             print("Saving weights. Iteration %d" % iteration)
             pickle.dump(policy, mlpFile)
 
             print("Saving results to file")
-            resultsFile.write("Iteration %d - Successes: %d / %d\n" % (iteration, successes, total))
+            resultsFile.write("Iteration %d - Successes: %d / %d (too easy: %d, too hard: %d)" % (iteration, successes, total, numTooEasy, numTooHard))
             resultsFile.flush()
             
-
-
-            #with problem.env.set_kill_outside():
-            #    rewards = evaluateStates(problem, policy, states=starts)
-            #print(rewards)
-
-            # starts ← select(starts, rews, R min , R max )
-            #starts = selectStartsWithGoodDifficulty(starts, rewards)
-
 
             filtered_raw_starts = [start for start, label in zip(starts, labels) if label[0] == 1]
             all_starts.append(filtered_raw_starts)
@@ -276,9 +226,5 @@ def training(problem):
                 print("Result: always high reward: find new seed starts in 5000 step rollouts")
                 with algo.env.set_kill_outside(radius=problem.kill_radius):
                     seedStarts = sampleNearby(problem, starts=starts, horizon=int(problem.horizon * 10), subsample=True)
-        
-
-            # startsOld.append[starts]
-            #startsOld.extend(starts)
 
     return policy
