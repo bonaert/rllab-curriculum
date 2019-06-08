@@ -14,6 +14,8 @@ class Arm3DKey:
         self.ultimateGoal = (0.0, 0.3, -0.7,  # first point --> hill
              0.0, 0.3, -0.4,  # second point --> top
              -0.15, 0.3, -0.55)
+
+        self.shouldKill = True
         
         fixed_goal_generator = FixedStateGenerator(state=self.ultimateGoal)
         fixed_start_generator = FixedStateGenerator(state=self.goal)
@@ -43,6 +45,7 @@ class Arm3DKey:
         self.num_new_starts = 600
         self.num_old_starts = 300
         self.horizon = 500
+        self.brownianHorizon = 50
         self.outer_iters = 5000
         self.inner_iters = 2
         self.pg_batch_size = 50000
@@ -55,7 +58,9 @@ class Arm3DKey:
         self.learn_std = False
         self.adaptive_std = False
 
-        self.horizon = 500
+        self.initialBrownianHorizon = 10
+        
+        
 
         self.persistence = 1
         self.with_replacement = True

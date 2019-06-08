@@ -14,7 +14,7 @@ class Arm3DDisc:
                             -0.15, 0.3, -0.55) # third point --> side
         
 
-        
+        self.shouldKill = True        
 
         fixed_goal_generator = FixedStateGenerator(state=self.ultimateGoal)
         fixed_start_generator = FixedStateGenerator(state=self.goal)
@@ -49,6 +49,7 @@ class Arm3DDisc:
         self.pg_batch_size = 100000
         self.discount = 0.998
 
+        self.initialBrownianHorizon = 10
         self.n_traj =3  # only for labeling and plotting (for now, later it will have to be equal to persistence!)
 
         self.output_gain = 0.1

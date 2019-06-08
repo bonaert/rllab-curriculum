@@ -19,7 +19,7 @@ from reverseCurriculum import brownian, sampleNearby, training
 
 problem = AntMaze()
 
-renderEnv(problem)
+training(problem)
 
 
 

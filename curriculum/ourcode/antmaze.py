@@ -13,6 +13,7 @@ class AntMaze:
         self.goal = (0, 4)
         self.ultimateGoal = (0, 4)
 
+        self.shouldKill = False
         
         fixed_goal_generator = FixedStateGenerator(state=self.ultimateGoal)
         fixed_start_generator = FixedStateGenerator(state=self.goal)
@@ -45,11 +46,14 @@ class AntMaze:
        
         self.num_new_starts = 200
         self.num_old_starts = 100
+        self.brownianHorizon = 50
         self.horizon = 2000
         self.outer_iters = 2000
         self.inner_iters = 5
         self.pg_batch_size = 120000
         self.discount = 0.995
+
+        self.initialBrownianHorizon = 200
 
         self.n_traj =3  # only for labeling and plotting (for now, later it will have to be equal to persistence!)
 

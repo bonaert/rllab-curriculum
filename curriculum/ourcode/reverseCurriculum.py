@@ -106,20 +106,19 @@ def getPolicy(problem):
 
 
 def brownian(start, problem, horizon, render=False):
-    with problem.env.set_kill_outside(kill_outside=problem.env.kill_outside, radius=problem.env.kill_radius):
-        steps = 0
-        states = []
-        _ = problem.env.reset(start)
-        reachedGoal = False
-        while steps < horizon:
-            if render:
-                problem.env.render()
-            steps += 1
-            action = np.random.uniform(*problem.env.action_space.bounds)
-            obs, _, done, _ = problem.env.step(action)
-            states.append(problem.env.start_observation)
-            if done:  # we don't care about goal done, otherwise will never advance!
-                reachedGoal = True
+    steps = 0
+    states = []
+    _ = problem.env.reset(start)
+    reachedGoal = False
+    while steps < horizon:
+        if render:
+            problem.env.render()
+        steps += 1
+        action = np.random.uniform(*problem.env.action_space.bounds)
+        obs, _, done, _ = problem.env.step(action)
+        states.append(problem.env.start_observation)
+        if done:  # we don't care about goal done, otherwise will never advance!
+            reachedGoal = True
 
     return states, reachedGoal
 
@@ -134,7 +133,11 @@ def sampleNearby(problem, starts=None, horizon=50, subsample = True, size=10000)
     
     while len(states) < size:
         start = starts[i % len(starts)]
-        newStates, reachedGoal = brownian(start, problem, horizon, render=False)
+        if problem.shouldKill:
+            with problem.env.set_kill_outside(kill_outside=problem.env.kill_outside, radius=problem.env.kill_radius):
+                newStates, reachedGoal = brownian(start, problem, horizon, render=True)
+        else:
+            newStates, reachedGoal = brownian(start, problem, horizon, render=True)
         states.extend(newStates)
         print("Reached goal: %s" % reachedGoal)
         print("Added %s states to starts array. New size: %d" % (len(newStates), len(states)))
@@ -154,16 +157,20 @@ def training(problem):
     policy, algo = getPolicy(problem)
 
     starts = [problem.goal]
-    seedStarts = sampleNearby(problem, starts=starts, horizon=10, size=1000)
+    seedStarts = sampleNearby(problem, starts=starts, horizon=problem.initialBrownianHorizon, size=1000)
     
     with open('mlp2.pickled', 'wb') as mlpFile, open('results2.txt', 'w') as resultsFile:
         all_starts = StateCollection(distance_threshold=0.03)
         brownian_starts = StateCollection(distance_threshold=0)
         for iteration in range(1, problem.outer_iters):
             
-            with problem.env.set_kill_outside():
-                print("Sampling new starts - Iteration %d" % iteration)
-                starts = sampleNearby(problem, seedStarts, problem.horizon, size=4000, subsample=False)
+            print("Sampling new starts - Iteration %d" % iteration)
+
+            if problem.shouldKill:
+                with problem.env.set_kill_outside():
+                    starts = sampleNearby(problem, seedStarts, problem.brownianHorizon, size=4000, subsample=False)
+            else:
+                starts = sampleNearby(problem, seedStarts, problem.brownianHorizon, size=4000, subsample=False)
 
             brownian_starts.empty()
             brownian_starts.append(starts)
@@ -225,7 +232,10 @@ def training(problem):
                 seedStarts = all_starts.sample(300)  # sample them from the replay
             else:  # add a tone of noise if all the states I had ended up being high_reward!
                 print("Result: always high reward: find new seed starts in 5000 step rollouts")
-                with algo.env.set_kill_outside(radius=problem.kill_radius):
+                if problem.shouldKill:
+                    with algo.env.set_kill_outside(radius=problem.kill_radius):
+                        seedStarts = sampleNearby(problem, starts=starts, horizon=int(problem.horizon * 10), subsample=True)
+                else:
                     seedStarts = sampleNearby(problem, starts=starts, horizon=int(problem.horizon * 10), subsample=True)
 
     return policy
