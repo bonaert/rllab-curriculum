@@ -135,9 +135,9 @@ def sampleNearby(problem, starts=None, horizon=50, subsample = True, size=10000)
         start = starts[i % len(starts)]
         if problem.shouldKill:
             with problem.env.set_kill_outside(kill_outside=problem.env.kill_outside, radius=problem.env.kill_radius):
-                newStates, reachedGoal = brownian(start, problem, horizon, render=True)
+                newStates, reachedGoal = brownian(start, problem, horizon, render=False)
         else:
-            newStates, reachedGoal = brownian(start, problem, horizon, render=True)
+            newStates, reachedGoal = brownian(start, problem, horizon, render=False)
         states.extend(newStates)
         print("Reached goal: %s" % reachedGoal)
         print("Added %s states to starts array. New size: %d" % (len(newStates), len(states)))
@@ -168,9 +168,9 @@ def training(problem):
 
             if problem.shouldKill:
                 with problem.env.set_kill_outside():
-                    starts = sampleNearby(problem, seedStarts, problem.brownianHorizon, size=4000, subsample=False)
+                    starts = sampleNearby(problem, seedStarts, problem.brownianHorizon, size=1000, subsample=False)
             else:
-                starts = sampleNearby(problem, seedStarts, problem.brownianHorizon, size=4000, subsample=False)
+                starts = sampleNearby(problem, seedStarts, problem.brownianHorizon, size=1000, subsample=False)
 
             brownian_starts.empty()
             brownian_starts.append(starts)
