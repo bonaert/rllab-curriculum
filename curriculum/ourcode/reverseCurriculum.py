@@ -95,7 +95,7 @@ def getPolicy(problem):
         batch_size=problem.pg_batch_size,
         max_path_length=problem.horizon,
         n_itr=problem.inner_iters,
-        step_size=TRPO_STEP_SIZE,
+        step_size=0.01,
         plot=False,
     )
 
