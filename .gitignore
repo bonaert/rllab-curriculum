@@ -64,3 +64,8 @@ sandbox/rocky/motor
 *.egg-info
 
 temp/
+vendor/
+
+mjkey.txt
+.vscode/
+*.zip

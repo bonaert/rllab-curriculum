@@ -11,15 +11,31 @@ def renderEnv(problem, reset=False):
     if reset: problem.env.reset(problem.goal)
     
     while True:
-        action = np.random.uniform(*problem.env.action_bounds)
-        problem.env.step(action)
+        #action = np.random.uniform(*problem.env.action_bounds)
+        #problem.env.step(action)
         problem.env.render()
 
-from reverseCurriculum import brownian, sampleNearby, training
 
-problem = AntMaze()
+problem = Arm3DKey()
+problem.env.reset(problem.goal)
 
-training(problem)
+shouldContinue = 'y'
+i  = 0
+while shouldContinue == 'y':
+    action = np.random.uniform(*problem.env.action_bounds)
+    state, d, e, f = problem.env.step(action)
+    
+    if i % 50 == 0:
+        problem.env.render()
+
+    i += 1
+    if (i + 1) % 3000 == 0:
+        shouldContinue = input('should continue (y/n)?:  ')
+    print(i)
+
+
+while True:
+	problem.env.render()
 
 
 

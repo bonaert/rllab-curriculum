@@ -25,8 +25,8 @@ ENTRYPOINT [ "/usr/bin/tini", "--" ]
 
 # ========== Special Deps ==========
 RUN apt-get -y install git make cmake unzip
-RUN pip install --ignore-installed PyYAML
-RUN pip install awscli
+RUN pip install --ignore-installed --upgrade PyYAML
+RUN pip install --ignore-installed awscli
 # ALE requires zlib
 RUN apt-get -y install zlib1g-dev
 # MUJOCO requires graphics stuff (Why?)
@@ -62,5 +62,3 @@ WORKDIR /root/code
 
 # gpu theanno
 ENV THEANO_FLAGS mode=FAST_RUN,device=gpu,floatX=float32
-
-
